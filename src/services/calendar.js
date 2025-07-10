@@ -64,7 +64,7 @@ class CalendarService {
 
     // Business hours (9 AM to 5 PM)
     const workStart = startDate.clone().set({ hour: 10, minute: 0 });
-    const workEnd = startDate.clone().set({ hour: 18, minute: 0 });
+    const workEnd = startDate.clone().set({ hour: 23, minute: 0 });
 
     const availableSlots = [];
     let currentSlot = workStart.clone();
