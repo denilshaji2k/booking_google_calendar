@@ -6,113 +6,215 @@ const openai = new OpenAI({
 });
 
 // System message template for WhatsAutomate integration
-const SYSTEM_MESSAGE = `You are a virtual assistant for kazhakuttam, responsible for assisting customers with appointment bookings through chat support. Your main tasks include booking, rescheduling, and cancelling appointments. If the client ID is missing, politely ask the customer for their full name to continue. Always use the default service and location; do not ask customers to select them. Never share technical IDs like bookingId; use human-readable language. If no slots are available, suggest alternative slots on the same day or nearby dates. Communicate naturally without including or referencing JSON or system data. Internal JSON responses are handled automatically.
+const SYSTEM_MESSAGE = `You are a professional appointment booking assistant for kazhakuttam, helping customers schedule and manage their appointments through WhatsApp chat support.
 
-Context:
+# Core Responsibilities
+- Book new appointments
+- Reschedule existing appointments
+- Cancel appointments
+- Check available time slots
+- View upcoming appointments
+
+# Business Context
 Today's Date: {{currentDate}}
-Client Name: {{client.name}}
+Business Hours: 9 AM to 5 PM
+Default Duration: 30 minutes
+Location: {{businessId}}
+Service: DB25CtMAX (default)
+
+# Client Context
+Name: {{client.name}}
 Phone: {{client.phone}}
 Timezone: {{timezone}}
 Client ID: {{client.id}}
-Default Location ID: {{businessId}}
-Default Service ID: DB25CtMAX
 
-Business Hours: 9 AM to 5 PM
-Appointment Duration: 30 minutes (default)
+# Communication Guidelines
+1. Be Professional & Friendly
+- Use polite, professional language
+- Be concise but warm
+- Address the client by name when available
+- Maintain a helpful and patient tone
 
-Remember to:
-1. Always be polite and professional
-2. Ask for missing information when needed
-3. Confirm details before making any changes
-4. Provide clear next steps
-5. Handle errors gracefully with user-friendly messages`;
+2. Information Collection
+- If client name/phone missing, politely ask for it
+- Confirm appointment details before booking
+- Double-check dates and times
+- Always specify timezone when discussing times
+- Ask for clarification if any details are ambiguous
+
+3. Appointment Management
+- Never share technical IDs (like appointmentId)
+- Use human-readable date/time formats
+- If requested slot unavailable, suggest alternatives:
+  * Same day different time
+  * Next available slot
+  * Next few days
+- Always confirm the final booking details
+
+4. Error Handling
+- Provide clear, non-technical error explanations
+- Guide users to correct invalid inputs
+- Offer alternatives when requests can't be fulfilled
+- Maintain context when recovering from errors
+
+5. Follow-up
+- Confirm actions taken
+- Provide next steps
+- Share Google Meet links for virtual appointments
+- Ask if there's anything else needed
+- Remind about cancellation/rescheduling policies
+
+# Response Structure
+1. Acknowledge the user's request
+2. Ask for any missing information
+3. Use available functions to fulfill the request
+4. Provide clear confirmation or next steps
+5. Offer additional assistance
+
+# Important Notes
+- Always validate dates and times before booking
+- Check for conflicts before confirming appointments
+- Handle timezone conversions carefully
+- Maintain conversation context for better assistance
+- Be proactive in suggesting alternatives
+- Keep responses concise but informative
+
+Remember: You have access to functions for all appointment operations. Always use these functions rather than making assumptions about availability or bookings.`;
 
 class OpenAIService {
   constructor() {
     this.defaultLocationId = process.env.DEFAULT_LOCATION_ID;
-    this.defaultServiceId = 'DB25CtMAX'; // Default service ID as per documentation
+    this.defaultServiceId = process.env.DEFAULT_SERVICE_ID;
   }
 
-  // Get the system message with current context
   getSystemMessage(clientInfo = {}) {
     const currentDate = new Date().toISOString().split('T')[0];
     return SYSTEM_MESSAGE
       .replace('{{currentDate}}', currentDate)
-      .replace('{{client.name}}', clientInfo.name || '')
-      .replace('{{client.phone}}', clientInfo.phone || '')
+      .replace('{{client.name}}', clientInfo.name || 'valued customer')
+      .replace('{{client.phone}}', clientInfo.phone || 'not provided')
       .replace('{{timezone}}', clientInfo.timezone || 'UTC')
-      .replace('{{client.id}}', clientInfo.id || '')
+      .replace('{{client.id}}', clientInfo.id || 'not available')
       .replace('{{businessId}}', this.defaultLocationId);
   }
 
-  // Process incoming message and return response
+  async executeToolCalls(toolCalls) {
+    return Promise.all(toolCalls.map(async (toolCall) => {
+      try {
+        const functionName = toolCall.function.name;
+        const functionArgs = JSON.parse(toolCall.function.arguments);
+
+        // Add default IDs for booking-related functions
+        if (['book_appointment', 'suggest_available_slots'].includes(functionName)) {
+          if (!functionArgs.location) functionArgs.location = { id: this.defaultLocationId };
+          if (!functionArgs.service) functionArgs.service = { id: this.defaultServiceId };
+        }
+
+        // Validate function exists
+        if (!executeFunctions[functionName]) {
+          throw new Error(`Function ${functionName} not implemented`);
+        }
+
+        // Execute the function and format result
+        const result = await executeFunctions[functionName](functionArgs);
+        return {
+          tool_call_id: toolCall.id,
+          role: 'tool',
+          name: functionName,
+          content: JSON.stringify(result)
+        };
+      } catch (error) {
+        console.error(`Error executing function ${toolCall.function.name}:`, error);
+        return {
+          tool_call_id: toolCall.id,
+          role: 'tool',
+          name: toolCall.function.name,
+          content: JSON.stringify({
+            error: error.message,
+            status: 'error',
+            timestamp: new Date().toISOString()
+          })
+        };
+      }
+    }));
+  }
+
   async processMessage(message, conversationHistory = [], clientInfo = {}) {
     try {
-      // Prepare messages array with system message and history
+      // Validate inputs
+      if (!message || typeof message !== 'string') {
+        throw new Error('Invalid message format');
+      }
+
+      if (!Array.isArray(conversationHistory)) {
+        throw new Error('Invalid conversation history format');
+      }
+
       const messages = [
         { role: 'system', content: this.getSystemMessage(clientInfo) },
         ...conversationHistory,
         { role: 'user', content: message }
       ];
 
-      // Call OpenAI with function definitions
+      // First call to get assistant's response and potential function calls
       const response = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages,
-        functions: Object.values(functions),
-        function_call: 'auto',
+        tools: Object.values(functions).map(fn => ({
+          type: 'function',
+          function: fn
+        })),
+        tool_choice: 'auto',
         temperature: 0.7,
+        max_tokens: 1000,
       });
 
       const assistantResponse = response.choices[0].message;
 
-      // Check if the model wants to call a function
-      if (assistantResponse.function_call) {
-        const functionName = assistantResponse.function_call.name;
-        const functionArgs = JSON.parse(assistantResponse.function_call.arguments);
+      // Handle function calls if present
+      if (assistantResponse.tool_calls && assistantResponse.tool_calls.length > 0) {
+        // Execute all function calls in parallel
+        const toolResults = await this.executeToolCalls(assistantResponse.tool_calls);
 
-        // Add default IDs if not provided
-        if (functionName === 'book_appointment' || functionName === 'suggest_available_slots') {
-          if (!functionArgs.location) functionArgs.location = { id: this.defaultLocationId };
-          if (!functionArgs.service) functionArgs.service = { id: this.defaultServiceId };
-        }
-
-        // Execute the function
-        const functionResult = await executeFunctions[functionName](functionArgs);
-
-        // Send the function result back to OpenAI for natural language response
-        const secondResponse = await openai.chat.completions.create({
+        // Get final response incorporating function results
+        const finalResponse = await openai.chat.completions.create({
           model: 'gpt-4-turbo-preview',
           messages: [
             ...messages,
             assistantResponse,
-            {
-              role: 'function',
-              name: functionName,
-              content: JSON.stringify(functionResult)
-            }
+            ...toolResults
           ],
           temperature: 0.7,
+          max_tokens: 1000,
         });
 
         return {
-          message: secondResponse.choices[0].message.content,
-          functionCall: {
-            name: functionName,
-            arguments: functionArgs,
-            result: functionResult
-          }
+          message: finalResponse.choices[0].message.content,
+          functionCalls: assistantResponse.tool_calls.map((call, index) => ({
+            name: call.function.name,
+            arguments: JSON.parse(call.function.arguments),
+            result: JSON.parse(toolResults[index].content)
+          })),
+          status: 'success',
+          timestamp: new Date().toISOString()
         };
       }
 
-      // If no function call, return the direct response
+      // Return direct response if no function calls
       return {
         message: assistantResponse.content,
-        functionCall: null
+        functionCalls: null,
+        status: 'success',
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       console.error('OpenAI processing error:', error);
-      throw error;
+      return {
+        message: 'I apologize, but I encountered an error processing your request. Please try again.',
+        error: error.message,
+        status: 'error',
+        timestamp: new Date().toISOString()
+      };
     }
   }
 }
