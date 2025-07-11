@@ -1,33 +1,46 @@
 const express = require('express');
 const router = express.Router();
-const appointmentService = require('../services/functions');
+const calendarService = require('../services/calendar');
+
+// Get available slots
+router.get('/slots', async (req, res) => {
+  try {
+    const { date, timezone = 'Asia/Kolkata', duration = 30 } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ error: 'Date is required' });
+    }
+
+    const slots = await calendarService.getAvailableSlots({
+      date,
+      timezone,
+      duration: parseInt(duration)
+    });
+
+    res.json(slots);
+  } catch (error) {
+    console.error('Error getting available slots:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Book appointment
 router.post('/book', async (req, res) => {
   try {
-    const appointment = await appointmentService.bookAppointment(req.body);
+    const { client_name, client_phone, timezone, date, time, duration } = req.body;
+    
+    const appointment = await calendarService.createAppointment({
+      client_name,
+      client_phone,
+      timezone,
+      date,
+      time,
+      duration
+    });
+
     res.json(appointment);
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// View appointments
-router.get('/', async (req, res) => {
-  try {
-    const appointments = await appointmentService.viewAppointments(req.query);
-    res.json(appointments);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Reschedule appointment
-router.post('/reschedule', async (req, res) => {
-  try {
-    const appointment = await appointmentService.rescheduleAppointment(req.body);
-    res.json(appointment);
-  } catch (error) {
+    console.error('Error booking appointment:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -35,19 +48,45 @@ router.post('/reschedule', async (req, res) => {
 // Cancel appointment
 router.post('/cancel', async (req, res) => {
   try {
-    const result = await appointmentService.cancelAppointment(req.body);
+    const { appointment_id } = req.body;
+    const result = await calendarService.cancelAppointment({ appointment_id });
     res.json(result);
   } catch (error) {
+    console.error('Error canceling appointment:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get available slots
-router.get('/slots', async (req, res) => {
+// Reschedule appointment
+router.post('/reschedule', async (req, res) => {
   try {
-    const slots = await appointmentService.getAvailableSlots(req.query);
-    res.json(slots);
+    const { appointment_id, date, time, timezone } = req.body;
+    const appointment = await calendarService.rescheduleAppointment({
+      appointment_id,
+      date,
+      time,
+      timezone
+    });
+    res.json(appointment);
   } catch (error) {
+    console.error('Error rescheduling appointment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get appointments
+router.get('/', async (req, res) => {
+  try {
+    const { client_id, start_date, end_date, timezone } = req.query;
+    const appointments = await calendarService.getAppointments({
+      client_id,
+      start_date,
+      end_date,
+      timezone
+    });
+    res.json(appointments);
+  } catch (error) {
+    console.error('Error getting appointments:', error);
     res.status(500).json({ error: error.message });
   }
 });
