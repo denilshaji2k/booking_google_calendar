@@ -27,7 +27,17 @@ router.get('/slots', async (req, res) => {
 // Book appointment
 router.post('/book', async (req, res) => {
   try {
-    const { client_name, client_phone, timezone, date, time, duration } = req.body;
+    // Get parameters from either query or body
+    const params = req.method === 'POST' ? req.body : req.query;
+    const { client_name, client_phone, timezone, date, time, duration } = params;
+    
+    // Convert 24-hour time format to 12-hour format if needed
+    // let formattedTime = time;
+    // if (time.includes(':')) {
+    //   const [hours, minutes] = time.split(':');
+    //   const hour = parseInt(hours);
+    //   formattedTime = `${hour > 12 ? hour - 12 : hour}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
+    // }
     
     const appointment = await calendarService.createAppointment({
       client_name,
