@@ -27,12 +27,30 @@ router.get('/slots', async (req, res) => {
 // Book appointment
 router.post('/book', async (req, res) => {
   try {
+    // Log incoming request
+    console.log('Incoming appointment request:');
+    console.log('Query parameters:', req.query);
+    console.log('Request body:', req.body);
+
     // Get parameters from query since we're using URL parameters
     const { client_name, client_phone, timezone, date, time } = req.query;
     
+    // Log parsed parameters
+    console.log('Parsed parameters:', {
+      client_name,
+      client_phone,
+      timezone,
+      date,
+      time
+    });
+
     // Validate required parameters
     if (!client_name || !client_phone || !timezone || !date || !time) {
-      return res.status(400).json({ error: 'Missing required parameters' });
+      console.log('Missing required parameters');
+      return res.status(400).json({ 
+        error: 'Missing required parameters',
+        received: { client_name, client_phone, timezone, date, time }
+      });
     }
 
     // Convert 24-hour time format to 12-hour format
@@ -40,11 +58,27 @@ router.post('/book', async (req, res) => {
     if (time && time.length > 0) {
       const [hours, minutes] = time.split(':');
       const hour = parseInt(hours);
+      console.log('Time conversion:', {
+        original: time,
+        parsedHour: hour,
+        parsedMinutes: minutes
+      });
+      
       if (!isNaN(hour)) {
         formattedTime = `${hour % 12 || 12}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
+        console.log('Formatted time:', formattedTime);
       }
     }
     
+    console.log('Attempting to create appointment with:', {
+      client_name,
+      client_phone,
+      timezone,
+      date,
+      time: formattedTime,
+      duration: 30
+    });
+
     const appointment = await calendarService.createAppointment({
       client_name,
       client_phone,
@@ -54,9 +88,11 @@ router.post('/book', async (req, res) => {
       duration: 30 // Default duration in minutes
     });
 
+    console.log('Appointment created successfully:', appointment);
     res.json(appointment);
   } catch (error) {
     console.error('Error booking appointment:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: error.message });
   }
 });

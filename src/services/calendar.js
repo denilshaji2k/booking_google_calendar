@@ -8,8 +8,23 @@ class CalendarService {
   }
 
   async createAppointment({ client_name, client_phone, timezone, date, time, duration = 30 }) {
+    console.log('Calendar service - Creating appointment with:', {
+      client_name,
+      client_phone,
+      timezone,
+      date,
+      time,
+      duration
+    });
+
     const startTime = moment.tz(`${date} ${time}`, 'YYYY-MM-DD hh:mm A', timezone);
     const endTime = startTime.clone().add(duration, 'minutes');
+
+    console.log('Calculated times:', {
+      startTime: startTime.format(),
+      endTime: endTime.format(),
+      timezone
+    });
 
     const event = {
       summary: `Appointment with ${client_name}`,
@@ -31,18 +46,27 @@ class CalendarService {
       }
     };
 
-    const response = await this.calendar.events.insert({
-      calendarId: this.calendarId,
-      resource: event,
-      conferenceDataVersion: 1
-    });
+    console.log('Creating Google Calendar event:', event);
 
-    return {
-      appointmentId: response.data.id,
-      meetLink: response.data.hangoutLink,
-      startTime: startTime.format(),
-      endTime: endTime.format()
-    };
+    try {
+      const response = await this.calendar.events.insert({
+        calendarId: this.calendarId,
+        resource: event,
+        conferenceDataVersion: 1
+      });
+
+      console.log('Google Calendar API response:', response.data);
+
+      return {
+        appointmentId: response.data.id,
+        meetLink: response.data.hangoutLink,
+        startTime: startTime.format(),
+        endTime: endTime.format()
+      };
+    } catch (error) {
+      console.error('Google Calendar API error:', error.response?.data || error);
+      throw error;
+    }
   }
 
   async getAvailableSlots({ date, timezone, duration = 30 }) {
