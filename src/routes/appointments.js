@@ -27,16 +27,22 @@ router.get('/slots', async (req, res) => {
 // Book appointment
 router.post('/book', async (req, res) => {
   try {
-    // Get parameters from either query or body
-    const params = req.method === 'POST' ? req.body : req.query;
-    const { client_name, client_phone, timezone, date, time, duration } = params;
+    // Get parameters from query since we're using URL parameters
+    const { client_name, client_phone, timezone, date, time } = req.query;
     
-    // Convert 24-hour time format to 12-hour format if needed
+    // Validate required parameters
+    if (!client_name || !client_phone || !timezone || !date || !time) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // Convert 24-hour time format to 12-hour format
     let formattedTime = time;
-    if (time.includes(':')) {
+    if (time && time.length > 0) {
       const [hours, minutes] = time.split(':');
       const hour = parseInt(hours);
-      formattedTime = `${hour > 12 ? hour - 12 : hour}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
+      if (!isNaN(hour)) {
+        formattedTime = `${hour % 12 || 12}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
+      }
     }
     
     const appointment = await calendarService.createAppointment({
@@ -45,7 +51,7 @@ router.post('/book', async (req, res) => {
       timezone,
       date,
       time: formattedTime,
-      duration
+      duration: 30 // Default duration in minutes
     });
 
     res.json(appointment);
