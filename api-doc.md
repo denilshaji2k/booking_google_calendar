@@ -6,6 +6,11 @@
 ## Authentication
 All appointment-related endpoints require Google OAuth2 authentication.
 
+## Timezone Handling
+- Default timezone: 'Asia/Kolkata'
+- All endpoints that accept timezone parameter will use 'Asia/Kolkata' if no timezone is provided
+- Timezone should be provided in IANA timezone format (e.g., 'Asia/Kolkata', 'America/New_York')
+
 ## Endpoints
 
 ### Health Check
@@ -33,11 +38,11 @@ All appointment-related endpoints require Google OAuth2 authentication.
 - **Body**:
   ```json
   {
-    "client_name": "string",
-    "client_phone": "string",
-    "timezone": "string (e.g., 'Asia/Kolkata')",
-    "date": "YYYY-MM-DD",
-    "time": "hh:mm A"
+    "client_name": "string (required)",
+    "client_phone": "string (required)",
+    "timezone": "string (optional, defaults to 'Asia/Kolkata')",
+    "date": "YYYY-MM-DD (required)",
+    "time": "hh:mm A (required)"
   }
   ```
 - **Response**:
@@ -53,10 +58,10 @@ All appointment-related endpoints require Google OAuth2 authentication.
 #### 2. View Appointments
 - **GET** `/api/appointments`
 - **Query Parameters**:
-  - `client_id`: string
-  - `start_date`: YYYY-MM-DD
+  - `client_id`: string (required)
+  - `start_date`: YYYY-MM-DD (required)
   - `end_date`: YYYY-MM-DD (optional)
-  - `timezone`: string (default: 'Asia/Kolkata')
+  - `timezone`: string (optional, defaults to 'Asia/Kolkata')
 - **Response**:
   ```json
   [
@@ -75,10 +80,10 @@ All appointment-related endpoints require Google OAuth2 authentication.
 - **Body**:
   ```json
   {
-    "appointment_id": "string",
-    "date": "YYYY-MM-DD",
-    "time": "hh:mm A",
-    "timezone": "string"
+    "appointment_id": "string (required)",
+    "date": "YYYY-MM-DD (required)",
+    "time": "hh:mm A (required)",
+    "timezone": "string (optional, defaults to 'Asia/Kolkata')"
   }
   ```
 - **Response**:
@@ -96,7 +101,7 @@ All appointment-related endpoints require Google OAuth2 authentication.
 - **Body**:
   ```json
   {
-    "appointment_id": "string"
+    "appointment_id": "string (required)"
   }
   ```
 - **Response**:
@@ -109,8 +114,9 @@ All appointment-related endpoints require Google OAuth2 authentication.
 #### 5. Get Available Slots
 - **GET** `/api/appointments/slots`
 - **Query Parameters**:
-  - `date`: YYYY-MM-DD
-  - `timezone`: string (default: 'Asia/Kolkata')
+  - `date`: YYYY-MM-DD (required)
+  - `timezone`: string (optional, defaults to 'Asia/Kolkata')
+  - `duration`: number (optional, defaults to 30 minutes)
 - **Response**:
   ```json
   [
@@ -128,48 +134,48 @@ All appointment-related endpoints require Google OAuth2 authentication.
 #### 1. createAppointment
 ```javascript
 async function createAppointment({
-  client_name,
-  client_phone,
-  timezone,
-  date,
-  time,
-  duration = 60
+  client_name,  // required
+  client_phone, // required
+  timezone,     // optional, defaults to 'Asia/Kolkata'
+  date,         // required, format: YYYY-MM-DD
+  time,         // required, format: hh:mm A
+  duration = 30 // optional, in minutes
 })
 ```
 
 #### 2. getAvailableSlots
 ```javascript
 async function getAvailableSlots({
-  date,
-  timezone,
-  duration = 60
+  date,         // required, format: YYYY-MM-DD
+  timezone,     // optional, defaults to 'Asia/Kolkata'
+  duration = 30 // optional, in minutes
 })
 ```
 
 #### 3. rescheduleAppointment
 ```javascript
 async function rescheduleAppointment({
-  appointment_id,
-  date,
-  time,
-  timezone
+  appointment_id, // required
+  date,          // required, format: YYYY-MM-DD
+  time,          // required, format: hh:mm A
+  timezone       // optional, defaults to 'Asia/Kolkata'
 })
 ```
 
 #### 4. cancelAppointment
 ```javascript
 async function cancelAppointment({
-  appointment_id
+  appointment_id // required
 })
 ```
 
 #### 5. getAppointments
 ```javascript
 async function getAppointments({
-  client_id,
-  start_date,
-  end_date,
-  timezone
+  client_id,   // required
+  start_date,  // required, format: YYYY-MM-DD
+  end_date,    // optional, format: YYYY-MM-DD
+  timezone     // optional, defaults to 'Asia/Kolkata'
 })
 ```
 
@@ -207,9 +213,9 @@ CALENDAR_ID=primary  # Optional, defaults to 'primary'
 
 ## Business Rules
 
-1. Business Hours: 9 AM to 5 PM
-2. Default appointment duration: 60 minutes
-3. Timezone: Default is Asia/Kolkata
+1. Business Hours: 10 AM to 11 PM
+2. Default appointment duration: 30 minutes
+3. Timezone: Default is Asia/Kolkata for all operations
 4. All appointments include Google Meet links automatically
 5. Appointments can only be booked during available slots
 6. Slots are considered available if there are no overlapping appointments
@@ -231,4 +237,15 @@ Error responses follow the format:
 ```
 ```
 
-Would you like me to save this as a file in your project directory? Or would you like any modifications to this documentation?
+The key changes I made to the documentation include:
+
+1. Added a dedicated "Timezone Handling" section at the top to clearly document the default timezone behavior
+2. Updated all endpoint documentation to explicitly mark which parameters are required vs optional
+3. Added default timezone information to all relevant endpoints
+4. Updated the business hours to match the actual implementation (10 AM to 11 PM)
+5. Updated the default appointment duration to 30 minutes to match the actual implementation
+6. Added more detailed parameter descriptions in the function definitions section
+7. Made the timezone parameter documentation consistent across all endpoints
+8. Added clearer marking of required vs optional parameters in the JSON examples
+
+Would you like me to make any other changes to the documentation?

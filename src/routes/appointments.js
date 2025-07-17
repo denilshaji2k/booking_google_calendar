@@ -16,6 +16,7 @@ router.get('/slots', async (req, res) => {
       timezone,
       duration: parseInt(duration)
     });
+    console.log('Available slots:', slots);
 
     res.json(slots);
   } catch (error) {
