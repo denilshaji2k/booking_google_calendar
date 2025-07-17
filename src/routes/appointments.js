@@ -27,56 +27,25 @@ router.get('/slots', async (req, res) => {
 // Book appointment
 router.post('/book', async (req, res) => {
   try {
-    // Log incoming request
-    console.log('Incoming appointment request:');
-    console.log('Query parameters:', req.query);
-    console.log('Request body:', req.body);
-
-    // Get parameters from query since we're using URL parameters
-    const { client_name, client_phone, timezone, date, time } = req.query;
+    // Default timezone set to Asia/Kolkata if not provided
+    // TODO: Update this default timezone as needed for your region
+    const { 
+      client_name, 
+      client_phone, 
+      timezone = 'Asia/Kolkata', // Added default timezone
+      date, 
+      time, 
+      duration 
+    } = req.body;
     
-    // Log parsed parameters
-    console.log('Parsed parameters:', {
+    // Log the parsed parameters for debugging
+    console.log('Parsed appointment parameters:', {
       client_name,
       client_phone,
       timezone,
       date,
-      time
-    });
-
-    // Validate required parameters
-    if (!client_name || !client_phone || !timezone || !date || !time) {
-      console.log('Missing required parameters');
-      return res.status(400).json({ 
-        error: 'Missing required parameters',
-        received: { client_name, client_phone, timezone, date, time }
-      });
-    }
-
-    // Convert 24-hour time format to 12-hour format
-    let formattedTime = time;
-    if (time && time.length > 0) {
-      const [hours, minutes] = time.split(':');
-      const hour = parseInt(hours);
-      console.log('Time conversion:', {
-        original: time,
-        parsedHour: hour,
-        parsedMinutes: minutes
-      });
-      
-      if (!isNaN(hour)) {
-        formattedTime = `${hour % 12 || 12}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
-        console.log('Formatted time:', formattedTime);
-      }
-    }
-    
-    console.log('Attempting to create appointment with:', {
-      client_name,
-      client_phone,
-      timezone,
-      date,
-      time: formattedTime,
-      duration: 30
+      time,
+      duration
     });
 
     const appointment = await calendarService.createAppointment({
@@ -84,15 +53,13 @@ router.post('/book', async (req, res) => {
       client_phone,
       timezone,
       date,
-      time: formattedTime,
-      duration: 30 // Default duration in minutes
+      time,
+      duration
     });
 
-    console.log('Appointment created successfully:', appointment);
     res.json(appointment);
   } catch (error) {
     console.error('Error booking appointment:', error);
-    console.error('Error stack:', error.stack);
     res.status(500).json({ error: error.message });
   }
 });
